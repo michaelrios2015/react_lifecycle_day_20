@@ -1,21 +1,46 @@
-const Sequelize = require('sequelize');
-const { STRING, TEXT } = Sequelize;
-const conn = new Sequelize(process.env.DATABASE_URL || 'postgres://postgres:JerryPine@localhost/acme_db');
+const { syncAndSeed, models: { User }} = require('./db');
+const express = require('express');
+const path = require('path');
 
-const User = conn.define('user', {
-    name: STRING,
-    bio: TEXT
+const app = express();
+
+app.use('/dist', express.static(path.join(__dirname, 'dist')));
+
+app.get('/', (req, res, next)=> res.sendFile(path.join(__dirname, 'index.html')));
+
+app.get('/api/users', async(req, res, next)=> {
+    try{
+        res.send(await User.findAll({
+            attributes: {
+                exclude: ['bio']
+            }
+        }));
+    }
+    catch(ex){
+        next(ex);
+    }
 });
 
-User.createWithName = (name)=> User.create({ name });
 
-const syncAndSeed = async()=> {
-    await conn.sync({ force: true });
-    const [moe, lucy, curly] = await Promise.all(
-        ['moe', 'lucy', 'curly'].map(User.createWithName)
-    );
+app.get('/api/user/:id', async(req, res, next)=> {
+    try{
+        res.send(await User.findByPk(req.params.id));
+    }
+    catch(ex){
+        next(ex);
+    }
+});
 
-    console.log(lucy.get());
+
+const init = async()=> {
+    try {
+        await syncAndSeed();
+        const port = process.env.PORT || 3000;
+        app.listen(port, ()=> console.log(`listening on port ${port}`));
+    }
+    catch(ex){
+        console.log(ex)
+    }
 };
 
-syncAndSeed();
+init();
